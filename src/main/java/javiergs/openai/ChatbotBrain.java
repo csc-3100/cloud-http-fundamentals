@@ -1,77 +1,55 @@
 package javiergs.openai;
 
+import javiergs.HttpApi;
 import org.json.JSONArray;
 import org.json.JSONObject;
-
 import java.beans.PropertyChangeSupport;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.http.HttpRequest;
 import java.util.Properties;
 
-/**
- * This class is responsible for the chatbot logic
- * It sends the user input to the OpenAI API and gets the response
- *
- * @version 1.0
- * @author javiergs
- */
+/** Sends a prompt to OpenAI's Responses API on a worker thread. */
 public class ChatbotBrain extends PropertyChangeSupport implements Runnable {
-	
-	private String input;
-	
-	public ChatbotBrain(String input) {
-		super(new Object());
-		this.input = input;
-	}
-	
-	@Override
-	public void run() {
-		String output = getChatGPTResponse();
-		firePropertyChange("output", null, output);
-	}
-	
-	private String getChatGPTResponse() {
-		try {
-			// get key from properties file
-			Properties properties = new Properties();
-			properties.load(getClass().getClassLoader().getResourceAsStream("config.properties"));
-			String OPENAI_API_KEY = properties.getProperty("OPENAI_API_KEY");
-			String OPENAI_SERVER_URL = properties.getProperty("OPENAI_SERVER");
-			// create connection
-			HttpURLConnection connection = (HttpURLConnection) new URL(OPENAI_SERVER_URL).openConnection();
-			connection.setRequestMethod("POST");
-			connection.setRequestProperty("Content-Type", "application/json");
-			connection.setRequestProperty("Authorization", "Bearer " + OPENAI_API_KEY);
-			JSONObject data = new JSONObject();
-			data.put("model", "gpt-3.5-turbo-instruct");
-			data.put("prompt", input);
-			data.put("max_tokens", 4000);
-			connection.setDoOutput(true);
-			// send data
-			connection.getOutputStream().write(data.toString().getBytes());
-			// get the response code
-			int responseCode = connection.getResponseCode();
-			if (responseCode != 200)
-				return "Sorry, something went wrong!";
-			// read the response
-			BufferedReader reader = new BufferedReader(
-				new InputStreamReader(connection.getInputStream()));
-			String response = "";
-			String line;
-			while ((line = reader.readLine()) != null) {
-				response += line;
-			}
-			reader.close();
-			// parse the response
-			JSONObject responseJson = new JSONObject(response);
-			JSONArray choices = responseJson.getJSONArray("choices");
-			String text = choices.getJSONObject(0).getString("text");
-			return text.trim();
-		} catch (Exception e) {
-			return "IOException: " + e.getMessage();
-		}
-	}
-	
+    private final String input;
+
+    public ChatbotBrain(String input) {
+        super(new Object());
+        this.input = input;
+    }
+
+    @Override
+    public void run() {
+        String output;
+        try {
+            output = getResponse();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            output = "Request interrupted.";
+        } catch (Exception e) {
+            output = "Request failed: " + e.getMessage();
+        }
+        firePropertyChange("output", null, output);
+    }
+
+    private String getResponse() throws Exception {
+        Properties config = HttpApi.configuration();
+        String endpoint = config.getProperty("OPENAI_SERVER", "https://api.openai.com/v1/responses");
+        String model = config.getProperty("OPENAI_MODEL", "gpt-4.1-mini");
+        JSONObject payload = new JSONObject().put("model", model).put("input", input);
+        HttpRequest request = HttpApi.request(endpoint)
+                .header("Authorization", "Bearer " + HttpApi.setting(config, "OPENAI_API_KEY"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payload.toString())).build();
+        JSONObject response = new JSONObject(HttpApi.send(request).body());
+        StringBuilder text = new StringBuilder();
+        JSONArray outputs = response.optJSONArray("output");
+        if (outputs != null) for (int i = 0; i < outputs.length(); i++) {
+            JSONArray parts = outputs.getJSONObject(i).optJSONArray("content");
+            if (parts != null) for (int j = 0; j < parts.length(); j++) {
+                JSONObject part = parts.getJSONObject(j);
+                if ("output_text".equals(part.optString("type"))) text.append(part.optString("text"));
+            }
+        }
+        if (text.isEmpty()) throw new IllegalStateException("No text in API response");
+        return text.toString().trim();
+    }
 }
