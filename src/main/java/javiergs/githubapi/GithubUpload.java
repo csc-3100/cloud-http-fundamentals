@@ -1,86 +1,47 @@
 package javiergs.githubapi;
 
+import javiergs.HttpApi;
 import org.json.JSONObject;
-
-import java.io.*;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.URLEncoder;
+import java.net.http.HttpRequest;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Properties;
 
-/**
- * This class is responsible for uploading a file to a GitHub repository
- * It reads the file content, encodes it in Base64 and sends it to the GitHub API
- *
- * @author javiergs
- * @version 1.0
- */
+/** Uploads a bundled sample file using GitHub's Contents API (HTTP PUT). */
 public class GithubUpload {
-	
-	private static final String OWNER = "OWNER";
-	private static final String REPO = "REPO";
-	private static final String BRANCH = "main";
-	private static final String FILE_PATH = "FILE.csv";
-	
-	public static void main(String[] args) throws IOException {
-		GithubUpload fileUploader = new GithubUpload();
-	}
-	
-	public GithubUpload() throws IOException {
-		String content = getLocalFileContent(FILE_PATH);
-		if (content != null)
-			uploadFileToGitHub(OWNER, REPO, BRANCH, FILE_PATH, content);
-	}
-	
-	private String getLocalFileContent(String filePath) throws IOException {
-		InputStream inputStream = getClass().getClassLoader().getResourceAsStream(filePath);
-		if (inputStream == null) {
-			System.out.println("File not found!");
-			return null;
-		}
-		byte[] contentBytes = inputStream.readAllBytes();
-		return Base64.getEncoder().encodeToString(contentBytes);
-	}
-	
-	private void uploadFileToGitHub(
-		String owner,
-		String repo,
-		String branch,
-		String destinationPath, String base64Content)
-		throws IOException {
-		// read properties
-		Properties properties = new Properties();
-		properties.load(getClass().getClassLoader().getResourceAsStream("config.properties"));
-		String token = properties.getProperty("GITHUB_TOKEN");
-		String server = properties.getProperty("GITHUB_API_SERVER");
-		// create URL
-		String url = server + "/repos/" + owner + "/" + repo + "/contents/" + destinationPath;
-		URL obj = new URL(url);
-		// create JSON object
-		JSONObject data = new JSONObject();
-		data.put("message", "Upload file");
-		data.put("content", base64Content);
-		data.put("branch", branch);
-		// create connection
-		HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
-		connection.setDoOutput(true);
-		connection.setRequestMethod("PUT");
-		connection.setRequestProperty("Authorization", "Bearer " + token);
-		connection.setRequestProperty("Content-Type", "application/json");
-		// send data file
-		OutputStream outputStream = connection.getOutputStream();
-		outputStream.write(data.toString().getBytes());
-		outputStream.flush();
-		if (connection.getResponseCode() != HttpURLConnection.HTTP_CREATED) {
-			throw new RuntimeException("Failed : HTTP error code : " + connection.getResponseCode());
-		}
-		BufferedReader br = new BufferedReader(
-			new InputStreamReader((connection.getInputStream())));
-		String output;
-		while ((output = br.readLine()) != null) {
-			System.out.println(output);
-		}
-		connection.disconnect();
-	}
-	
+    public static void main(String[] args) {
+        try {
+            new GithubUpload().upload();
+        } catch (Exception e) {
+            System.err.println("Upload failed: " + e.getMessage());
+        }
+    }
+
+    public void upload() throws Exception {
+        Properties config = HttpApi.configuration();
+        String owner = HttpApi.setting(config, "GITHUB_OWNER");
+        String repo = HttpApi.setting(config, "GITHUB_REPO");
+        String token = HttpApi.setting(config, "GITHUB_TOKEN");
+        String branch = config.getProperty("GITHUB_BRANCH", "main");
+        String filename = config.getProperty("GITHUB_FILE_PATH", "sample_data_file.csv");
+        if (filename.contains("/") || filename.contains("\\") || filename.equals(".."))
+            throw new IllegalArgumentException("Use a simple file name");
+        byte[] bytes;
+        try (var stream = getClass().getClassLoader().getResourceAsStream("sample_data_file.csv")) {
+            if (stream == null) throw new IllegalStateException("Missing sample_data_file.csv");
+            bytes = stream.readAllBytes();
+        }
+        String server = config.getProperty("GITHUB_API_SERVER", "https://api.github.com");
+        String url = server.replaceAll("/+$", "") + "/repos/" + owner + "/" + repo +
+                "/contents/" + URLEncoder.encode(filename, StandardCharsets.UTF_8);
+        JSONObject payload = new JSONObject().put("message", "Upload sample data")
+                .put("content", Base64.getEncoder().encodeToString(bytes)).put("branch", branch);
+        HttpRequest request = HttpApi.request(url)
+                .header("Authorization", "Bearer " + token)
+                .header("Accept", "application/vnd.github+json")
+                .header("Content-Type", "application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString(payload.toString())).build();
+        System.out.println("GitHub response: " + HttpApi.send(request).statusCode());
+    }
 }
