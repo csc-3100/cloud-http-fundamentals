@@ -1,31 +1,42 @@
 ![Static Badge](https://img.shields.io/badge/author-javiergs-orange)
-![GitHub repo size](https://img.shields.io/github/repo-size/CSC3100/Cloud-Services)
-![GitHub Release](https://img.shields.io/github/v/release/CSC3100/Cloud-Services)
-[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
 
-# Cloud-Services
-Examples of Java Desktop application connecting to cloud services using their HTTP-based API including AccuWeather, OpenAI, and Bing Maps APIs.
+# HTTP Fundamentals
 
+Java desktop examples of **consuming third-party HTTP APIs**, rather than implementing a REST server.
+
+## Examples
+
+- **Weather:** HTTP GET, JSON parsing (AccuWeather).
+- **Maps:** HTTP GET, binary image response (legacy Bing Maps example).
+- **Chatbot:** HTTP POST, JSON request/response, bearer authentication (OpenAI Responses API).
+- **GitHub:** HTTP GET to list/download repository files and HTTP PUT to upload sample data.
+
+The examples use Java's built-in `java.net.http.HttpClient`, status-code validation, timeouts, and `org.json`.
+
+## Requirements
+
+JDK 20 or later and Maven. API credentials are needed for each service used.
+
+## Configuration
+
+Copy `src/main/resources/config.sample.properties` to `src/main/resources/config.properties` and replace placeholders. This file is Git-ignored. Alternatively, supply matching environment variables; they take precedence for required credentials. Never commit API keys.
+
+| Example | Required values | Optional values |
+| --- | --- | --- |
+| OpenAI | `OPENAI_API_KEY` | `OPENAI_SERVER`, `OPENAI_MODEL` |
+| Weather | `WEATHER_API_KEY` | `WEATHER_SERVER` |
+| Maps | `MAPS_API_KEY` | `MAPS_SERVER` |
+| GitHub upload | `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO` | `GITHUB_API_SERVER`, `GITHUB_BRANCH`, `GITHUB_FILE_PATH` |
+
+GitHub upload needs a fine-grained token with **Contents: Read and write** permission for the destination repository. The upload example creates a new file; it does not overwrite an existing one. External API services may charge for usage.
 
 ## Run
-Run it as:
+
+```bash
+mvn compile
+mvn exec:java -Dexec.mainClass=javiergs.Main
 ```
-java -jar javiergs.Main
-```
 
-## User Interface
-A text area for the chatbot output, a text field for the user input, and a button to send the request.
-<p align="center">
-<img width="600" src="https://github.com/CSC3100/Cloud-Services/assets/3814755/e4b52c43-2917-435f-a808-61ad2ade78d6">
-</p>
+To run only the chatbot, use `-Dexec.mainClass=javiergs.openai.ChatbotMain`. The GitHub download/upload classes also have standalone `main` methods.
 
-
-## Blueprint
-A drafted class diagram of the current release is as follows:<br>
-<p align="center">
-<img width="600" src="https://github.com/CSC3100/Cloud-Services/assets/3814755/c996365e-2069-4ba7-bb3a-56d8bd55140a">
-</p>
-
-## Bonus
-I have added an example for using Github API to upload a file to a repository.
-See the package [here](/src/main/java/javiergs/githubapi/)
+The combined Swing app calls weather and map APIs at startup, so missing credentials or retired third-party services may display errors. Bing Maps is a **legacy example** and may require replacement by a currently supported maps provider.
