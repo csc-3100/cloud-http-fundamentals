@@ -1,7 +1,3 @@
-![Static Badge](https://img.shields.io/badge/author-javiergs-orange)
-
-# HTTP Fundamentals
-
 Java desktop examples of **consuming third-party HTTP APIs**, rather than implementing a REST server.
 
 ## Examples
