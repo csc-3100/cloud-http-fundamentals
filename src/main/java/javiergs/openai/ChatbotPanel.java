@@ -51,39 +51,44 @@ public class ChatbotPanel extends JPanel implements PropertyChangeListener, Acti
 	@Override
 	public void actionPerformed(ActionEvent e) {
 		String input = inputField.getText();
+		if (input.isBlank()) return;
+		inputField.setText("");
 		// disable sending
 		sendButton.setText("Sending...");
 		sendButton.setEnabled(false);
 		// create a new ChatbotBrain object
 		ChatbotBrain chatbotBrain = new ChatbotBrain(input);
-		chatbotBrain.addPropertyChangeListener(this);
+		chatbotBrain.addPropertyChangeListener(event -> SwingUtilities.invokeLater(() -> {
+			String output = (String) event.getNewValue();
+			appendConversation(input, output);
+		}));
 		Thread thread = new Thread(chatbotBrain);
 		thread.start();
 	}
 	
 	@Override
 	public void propertyChange(PropertyChangeEvent evt) {
-		if (!evt.getPropertyName().equals("output"))
-			return;
-		String output = (String) evt.getNewValue();
-		// format the output
+		// Updates from worker threads must be dispatched to Swing's event thread.
+		if ("output".equals(evt.getPropertyName()))
+			SwingUtilities.invokeLater(() -> appendConversation("", (String) evt.getNewValue()));
+	}
+
+	private void appendConversation(String input, String output) {
 		StyledDocument doc = outputArea.getStyledDocument();
-		Style styleOrange = outputArea.addStyle("Orange", null);
-		StyleConstants.setForeground(styleOrange, new Color(50, 100, 0, 255));
-		Style styleGray = outputArea.addStyle("Gray", null);
-		StyleConstants.setForeground(styleGray, Color.GRAY);
+		Style userStyle = outputArea.addStyle("User", null);
+		StyleConstants.setForeground(userStyle, new Color(50, 100, 0));
+		Style replyStyle = outputArea.addStyle("Reply", null);
+		StyleConstants.setForeground(replyStyle, Color.GRAY);
 		try {
-			doc.insertString(doc.getLength(), "You -> " + inputField.getText() + "\n", styleOrange);
-			doc.insertString(doc.getLength(), "ChatGPT -> " + output + "\n", styleGray);
-			
+			doc.insertString(doc.getLength(), "You -> " + input + "\n", userStyle);
+			doc.insertString(doc.getLength(), "ChatGPT -> " + output + "\n", replyStyle);
 		} catch (BadLocationException ex) {
-			ex.printStackTrace();
+			System.err.println(ex.getMessage());
 		}
-		// enable sending
 		sendButton.setText("Send");
 		sendButton.setEnabled(true);
 	}
-	
+
 	public Dimension getPreferredSize() {
 		return new Dimension(400, 400);
 	}
