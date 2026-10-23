@@ -36,3 +36,22 @@ mvn exec:java -Dexec.mainClass=javiergs.Main
 To run only the chatbot, use `-Dexec.mainClass=javiergs.openai.ChatbotMain`. The GitHub download/upload classes also have standalone `main` methods.
 
 The combined Swing app calls weather and map APIs at startup, so missing credentials or retired third-party services may display errors. Bing Maps is a **legacy example** and may require replacement by a currently supported maps provider.
+
+## TULIP client-library examples
+
+The optional [TULIP library](https://github.com/javiergs/TULIP) examples demonstrate consuming HTTP-based services through a Java client library instead of constructing requests directly with `HttpClient`.
+
+- `javiergs.tulip.MainGroq`: asks Groq to review a user story and suggest tasks.
+- `javiergs.tulip.MainTaiga`: retrieves Taiga projects, sprints, stories, and tasks.
+
+TULIP is an optional Maven profile to keep the core direct-HTTP examples independent of the library. The dependency is fetched from JitPack at version `v7.1`.
+
+Configure `GROQ_API_KEY` or `TAIGA_USERNAME` and `TAIGA_PASSWORD` through environment variables (recommended) or the ignored `config.properties` file. Set `TAIGA_HOST` and `GROQ_BASE_URL` if using a custom server. Never commit real credentials.
+
+```bash
+mvn -Ptulip compile
+mvn -Ptulip exec:java -Dexec.mainClass=javiergs.tulip.MainGroq
+mvn -Ptulip exec:java -Dexec.mainClass=javiergs.tulip.MainTaiga
+```
+
+These examples require working credentials and network access. The TULIP integration has not yet been verified against a live service.
